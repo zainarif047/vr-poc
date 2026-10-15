@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.vite/
+*.tsbuildinfo
+
+# vercel
+.vercel/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# test / coverage
+coverage/
