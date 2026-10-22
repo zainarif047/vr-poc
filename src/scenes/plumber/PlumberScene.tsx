@@ -3,157 +3,22 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { scenarioById } from '../../engine';
-import { part as partSpec, type Material, type PartKind } from '../../engine/plumber/catalog';
-import { CAP_LEN, ELBOW_R, TEE_LEN, VALVE_LEN, boundsOf, layoutRoute, type SlotDef, type SlotGeom } from '../../engine/plumber/layout';
+import { part as partSpec } from '../../engine/plumber/catalog';
+import { K, PartModel } from './PartModel';
+import { ELBOW_R, TEE_LEN, boundsOf, layoutRoute, type SlotDef, type SlotGeom } from '../../engine/plumber/layout';
 import type { PlumberParams, PlumberState } from '../../engine/plumber/reducer';
 import type { Scenario } from '../../engine/types';
 import { useSession } from '../../store/session';
 import { mats } from '../common/materials';
-import { Controls, Lights, RecorderBridge, Room } from '../common/Rig';
+import { Controls, Lights, RecorderBridge, Workshop } from '../common/Rig';
+import { fpsActiveNow, useFpsActive, useInteractable, type FpsAction, type FpsSpec } from '../../fps/runtime';
+import { PLUMBER_ROOM, PlumberFps, PlumberStations, toolLabel } from './PlumberStations';
 
-const K = 0.0028; // metres per scene-mm (scene is deliberately enlarged for readability on screen)
 const Z = 0.075; // pipe centre-line distance from wall
 const BASE_Y = 1.0;
 
 // meshes that accept drops/clicks, registered for the drag controller
 const slotHits = new Map<string, THREE.Object3D>();
-
-// ───────────────────────── part models ─────────────────────────
-interface PartProps {
-  kind: PartKind;
-  dia: 15 | 22;
-  material: Material;
-  len: number;
-  turn: 'L' | 'R';
-  side: 'L' | 'R';
-  ghost?: 'ghost' | 'hot';
-  tight: boolean;
-  defective?: boolean;
-}
-
-function PartModel(p: PartProps) {
-  const M = mats();
-  const r = (p.dia / 2) * K * 1.25;
-  const g = p.ghost ? (p.ghost === 'hot' ? M.ghostHot : M.ghost) : null;
-  const body = g ?? (p.material === 'copper' ? M.copper : p.material === 'pvc' ? M.pvc : M.galv);
-  const fit = g ?? (p.material === 'pvc' ? M.pvc : p.tight ? M.nutTight : M.nutLoose);
-  const brass = g ?? M.brass;
-  const loose = p.tight ? 0 : 3;
-  const nutLen = 12 * K;
-  const Nut = ({ x, vertical = false }: { x: number; vertical?: boolean }) => (
-    <mesh position={vertical ? [0, x, 0] : [x, 0, 0]} rotation={vertical ? [0, 0, 0] : [0, 0, Math.PI / 2]} castShadow material={fit}>
-      <cylinderGeometry args={[r * 1.42, r * 1.42, nutLen, 6]} />
-    </mesh>
-  );
-  const cyl = (x0: number, x1: number, rad: number, mat: THREE.Material, vertical = false) => (
-    <mesh
-      position={vertical ? [0, (x0 + x1) / 2, 0] : [(x0 + x1) / 2, 0, 0]}
-      rotation={vertical ? [0, 0, 0] : [0, 0, Math.PI / 2]}
-      castShadow
-      receiveShadow
-      material={mat}
-    >
-      <cylinderGeometry args={[rad, rad, Math.abs(x1 - x0), 28]} />
-    </mesh>
-  );
-
-  switch (p.kind) {
-    case 'pipe': {
-      const L = p.len * K;
-      return (
-        <group>
-          {cyl(0, L, r, body)}
-          <Nut x={(6 - loose) * K} />
-          <Nut x={L - (6 - loose) * K} />
-        </group>
-      );
-    }
-    case 'valve': {
-      const L = VALVE_LEN * K;
-      const lever = g ?? M.redPaint;
-      return (
-        <group>
-          {cyl(0, L, r * 1.12, g ?? M.brass)}
-          <mesh position={[L / 2, 0, 0]} castShadow material={brass}>
-            <sphereGeometry args={[r * 1.9, 28, 20]} />
-          </mesh>
-          <mesh position={[L / 2, r * 2.4, 0]} castShadow material={brass}>
-            <cylinderGeometry args={[r * 0.5, r * 0.55, r * 1.8, 16]} />
-          </mesh>
-          <mesh position={[L / 2 + r * 1.2, r * 3.5, 0]} castShadow material={lever}>
-            <boxGeometry args={[r * 5, r * 0.55, r * 1.3]} />
-          </mesh>
-          <Nut x={(6 - loose) * K} />
-          <Nut x={L - (6 - loose) * K} />
-        </group>
-      );
-    }
-    case 'elbow': {
-      const R = ELBOW_R * K;
-      const s = p.turn === 'L' ? 1 : -1;
-      return (
-        <group>
-          <mesh
-            position={[0, s * R, 0]}
-            rotation={[0, 0, p.turn === 'L' ? -Math.PI / 2 : 0]}
-            castShadow
-            receiveShadow
-            material={body}
-          >
-            <torusGeometry args={[R, r, 20, 36, Math.PI / 2]} />
-          </mesh>
-          <Nut x={(6 - loose) * K} />
-          {/* second port nut: placed at the end point, axis along ±y */}
-          <group position={[R, s * R, 0]}>
-            <mesh position={[0, -s * (6 - loose) * K, 0]} castShadow material={fit}>
-              <cylinderGeometry args={[r * 1.42, r * 1.42, nutLen, 6]} />
-            </mesh>
-          </group>
-          {p.defective && !g && (
-            <group position={[R * 0.707 + r * 0.55, s * R * 0.293 - s * r * 0.55, 0]} rotation={[0, 0, s * Math.PI / 4]}>
-              <mesh>
-                <boxGeometry args={[r * 0.12, r * 1.5, r * 0.5]} />
-                <meshBasicMaterial color="#120a06" />
-              </mesh>
-            </group>
-          )}
-        </group>
-      );
-    }
-    case 'tee': {
-      const L = TEE_LEN * K;
-      const s = p.side === 'L' ? 1 : -1;
-      const bl = 40 * K;
-      return (
-        <group>
-          {cyl(0, L, r, body)}
-          <mesh position={[L / 2, s * (bl / 2), 0]} castShadow receiveShadow material={body}>
-            <cylinderGeometry args={[r, r, bl, 28]} />
-          </mesh>
-          <Nut x={(6 - loose) * K} />
-          <Nut x={L - (6 - loose) * K} />
-          <group position={[L / 2, s * (bl - (6 - loose) * K), 0]}>
-            <mesh castShadow material={fit}>
-              <cylinderGeometry args={[r * 1.42, r * 1.42, nutLen, 6]} />
-            </mesh>
-          </group>
-        </group>
-      );
-    }
-    case 'cap': {
-      const L = CAP_LEN * K;
-      return (
-        <group>
-          {cyl(0, L * 0.7, r * 1.35, brass)}
-          <mesh position={[L * 0.7, 0, 0]} scale={[0.7, 1, 1]} castShadow material={brass}>
-            <sphereGeometry args={[r * 1.35, 24, 16]} />
-          </mesh>
-          <Nut x={(6 - loose) * K} />
-        </group>
-      );
-    }
-  }
-}
 
 function hitBox(def: SlotDef, geom: SlotGeom): { size: [number, number, number]; pos: [number, number, number] } {
   const t = 0.1;
@@ -182,6 +47,9 @@ function Slot({ def, geom, world }: { def: SlotDef; geom: SlotGeom; world: (x: n
   const [wx, wy] = world(geom.x, geom.y);
   const hit = hitBox(def, geom);
   const grow = useRef<THREE.Group>(null);
+  const hitRef = useRef<THREE.Mesh | null>(null);
+  const fps = useFpsActive();
+  useInteractable(hitRef, () => slotSpec(def), fps);
   const placedAt = useRef(0);
   const partId = st.part;
   useEffect(() => {
@@ -230,6 +98,7 @@ function Slot({ def, geom, world }: { def: SlotDef; geom: SlotGeom; world: (x: n
         position={hit.pos}
         userData={{ slotId: def.id }}
         ref={(m) => {
+          hitRef.current = m;
           if (m) slotHits.set(def.id, m);
           else slotHits.delete(def.id);
         }}
@@ -262,6 +131,39 @@ function Slot({ def, geom, world }: { def: SlotDef; geom: SlotGeom; world: (x: n
   );
 }
 
+/** First-person prompt for a slot: what the click / hold will do with the part or tool in hand. */
+function slotSpec(def: SlotDef): FpsSpec {
+  const s = useSession.getState();
+  const st = s.state as PlumberState;
+  const cur = st.slots[def.id];
+  const fitted = cur.part ? partSpec(cur.part) : null;
+  const run = () => slotClick(def.id);
+  const actions: FpsAction[] = [];
+  if (s.armed) actions.push({ key: 'LMB', label: `Fit ${partSpec(s.armed).label}`, run });
+  else
+    switch (st.tool) {
+      case 'tape':
+        actions.push({ key: 'LMB', label: 'Measure', run });
+        break;
+      case 'wrench':
+      case 'hammer':
+      case 'pliers':
+        if (fitted) actions.push({ key: 'HOLD', label: st.tool === 'wrench' ? 'Tighten joint' : `Tighten with ${toolLabel(st.tool).toLowerCase()}`, hold: 650, run });
+        break;
+      case 'marker':
+        actions.push({ key: 'LMB', label: st.flagged.includes(def.id) ? 'Remove leak tag' : 'Tag as leaking', run });
+        break;
+      default:
+        if (fitted) actions.push({ key: 'LMB', label: 'Remove part', run });
+    }
+  return {
+    id: 'slot:' + def.id,
+    title: def.label,
+    sub: fitted ? `${fitted.label} · ${fitted.sub} · ${cur.tight ? 'tightened' : 'not tightened'}` : 'Empty position',
+    actions,
+  };
+}
+
 /** Click rules for a slot depending on armed part and selected tool. */
 export function slotClick(id: string) {
   const s = useSession.getState();
@@ -277,7 +179,10 @@ export function slotClick(id: string) {
   switch (st.tool) {
     case 'tape': {
       const mm = def.kind === 'pipe' ? def.len! : Math.round(geoms[id].span);
-      if (s.act('measure', id, { mm })) useSession.setState({ lastMeasure: { id, mm } });
+      if (s.act('measure', id, { mm })) {
+        useSession.setState({ lastMeasure: { id, mm } });
+        if (fpsActiveNow()) s.toastMsg(`📏 Position ${id.replace('s', '')}: ${mm} mm`, 'info');
+      }
       break;
     }
     case 'wrench':
@@ -291,7 +196,7 @@ export function slotClick(id: string) {
     case 'hand':
     default:
       if (st.slots[id].part) s.act('remove', id);
-      else s.toastMsg('Select a component from the tray, then click this position.', 'info');
+      else s.toastMsg(fpsActiveNow() ? 'Pick up a component from the stores first (F).' : 'Select a component from the tray, then click this position.', 'info');
   }
 }
 
@@ -360,6 +265,21 @@ function Pipe3({ a, b, r, mat }: { a: [number, number, number]; b: [number, numb
 function Stopcock({ x }: { x: number }) {
   const supply = useSession((s) => (s.state as PlumberState).supply);
   const lever = useRef<THREE.Group>(null);
+  const root = useRef<THREE.Group>(null);
+  useInteractable(
+    root,
+    () => {
+      const open = (useSession.getState().state as PlumberState).supply === 'open';
+      return {
+        id: 'stopcock',
+        title: 'Mains stopcock',
+        sub: open ? 'OPEN – pipework is live' : 'CLOSED – supply isolated',
+        tone: open ? 'warn' : 'ok',
+        actions: [{ key: 'E', label: open ? 'Close (isolate supply)' : 'Open (restore supply)', run: () => useSession.getState().act(open ? 'isolate' : 'restore') }],
+      };
+    },
+    useFpsActive(),
+  );
   const M = mats();
   useFrame((_, dt) => {
     if (!lever.current) return;
@@ -373,7 +293,7 @@ function Stopcock({ x }: { x: number }) {
     s.act(supply === 'open' ? 'isolate' : 'restore');
   };
   return (
-    <group position={[x, 0.62, Z]}>
+    <group ref={root} position={[x, 0.62, Z]}>
       <mesh castShadow material={M.brass} onClick={click} onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
         <boxGeometry args={[0.1, 0.16, 0.1]} />
       </mesh>
@@ -395,8 +315,22 @@ function Stopcock({ x }: { x: number }) {
 function DrainCock({ x }: { x: number }) {
   const M = mats();
   const drained = useSession((s) => (s.state as PlumberState).drained);
+  const root = useRef<THREE.Group>(null);
+  useInteractable(
+    root,
+    () => {
+      const st = useSession.getState().state as PlumberState;
+      return {
+        id: 'drain',
+        title: 'Drain cock',
+        sub: st.drained ? 'Line drained · 0 bar' : `Closed · line at ${st.pressure.toFixed(1)} bar`,
+        actions: [{ key: 'E', label: 'Open drain cock', run: () => useSession.getState().act('drain') }],
+      };
+    },
+    useFpsActive(),
+  );
   return (
-    <group position={[x, 0.3, Z]}>
+    <group ref={root} position={[x, 0.3, Z]}>
       <mesh
         castShadow
         material={M.brass}
@@ -544,16 +478,24 @@ export function PlumberScene() {
   const endX = lg.x + Math.cos(lg.ang) * lg.span + (last.kind === 'elbow' ? 0 : 0);
   const endY = lg.y + Math.sin(lg.ang) * lg.span;
   const [ox, oy] = world(endX, endY);
+  const fps = useFpsActive();
 
   return (
     <>
       <Lights />
-      <Room />
+      <Workshop box={PLUMBER_ROOM} closed={fps} />
       <Props />
+      <PlumberStations sx={sx} rigHalf={(widthM + 1.5) / 2} />
       <RecorderBridge />
-      <DropController />
-      <Controls target={[0, Math.max(0.95, targetY), 0]} minDistance={1.8} maxDistance={Math.max(5.2, distance + 1.5)} />
-      <CameraPlacer distance={distance} y={Math.max(1.35, targetY + 0.3)} />
+      {fps ? (
+        <PlumberFps tray={scn.params.tray} />
+      ) : (
+        <>
+          <DropController />
+          <Controls target={[0, Math.max(0.95, targetY), 0]} minDistance={1.8} maxDistance={Math.max(5.2, distance + 1.5)} />
+          <CameraPlacer distance={distance} y={Math.max(1.35, targetY + 0.3)} />
+        </>
+      )}
 
       {/* supply stub and riser */}
       <Pipe3 a={[sx, BASE_Y, Z]} b={[ex, ey, Z]} r={0.03} mat={M.copper} />

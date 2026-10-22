@@ -14,7 +14,7 @@ import {
 } from '../engine/welder/reducer';
 import { useSession } from '../store/session';
 
-function Range({ label, unit, value, min, max, step, onCommit }: { label: string; unit: string; value: number; min: number; max: number; step: number; onCommit: (v: number) => void }) {
+export function Range({ label, unit, value, min, max, step, onCommit }: { label: string; unit: string; value: number; min: number; max: number; step: number; onCommit: (v: number) => void }) {
   const [v, setV] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => setV(value), [value]);
@@ -42,6 +42,57 @@ function Range({ label, unit, value, min, max, step, onCommit }: { label: string
         }}
       />
     </div>
+  );
+}
+
+/** Wire, gas, current preset, gas flow and torch angle. Used by the side HUD and the first-person machine panel. */
+export function MachineSetup() {
+  const st = useSession((s) => s.state as WelderState);
+  const act = useSession((s) => s.act);
+  return (
+    <>
+      <label className="sel">
+        Filler wire
+        <select value={st.wire ?? ''} onChange={(e) => act('set_wire', undefined, { v: e.target.value })}>
+          <option value="" disabled>
+            — select —
+          </option>
+          {WIRES.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="sel">
+        Shielding gas
+        <select value={st.gas ?? ''} onChange={(e) => act('set_gas', undefined, { v: e.target.value })}>
+          <option value="" disabled>
+            — select —
+          </option>
+          {GASES.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="sel">
+        Current / voltage preset
+        <select value={st.preset ?? ''} onChange={(e) => act('set_preset', undefined, { v: e.target.value })}>
+          <option value="" disabled>
+            — select —
+          </option>
+          {PRESETS.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <Range label="Gas flow" unit=" L/min" value={st.flow} min={4} max={30} step={1} onCommit={(v) => act('set_flow', undefined, { v })} />
+      <Range label="Torch angle" unit="°" value={st.angle} min={0} max={60} step={1} onCommit={(v) => act('set_angle', undefined, { v })} />
+    </>
   );
 }
 
@@ -105,47 +156,7 @@ export function WelderHud() {
 
           <section>
             <h3>Machine setup</h3>
-            <label className="sel">
-              Filler wire
-              <select value={st.wire ?? ''} onChange={(e) => act('set_wire', undefined, { v: e.target.value })}>
-                <option value="" disabled>
-                  — select —
-                </option>
-                {WIRES.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="sel">
-              Shielding gas
-              <select value={st.gas ?? ''} onChange={(e) => act('set_gas', undefined, { v: e.target.value })}>
-                <option value="" disabled>
-                  — select —
-                </option>
-                {GASES.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="sel">
-              Current / voltage preset
-              <select value={st.preset ?? ''} onChange={(e) => act('set_preset', undefined, { v: e.target.value })}>
-                <option value="" disabled>
-                  — select —
-                </option>
-                {PRESETS.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Range label="Gas flow" unit=" L/min" value={st.flow} min={4} max={30} step={1} onCommit={(v) => act('set_flow', undefined, { v })} />
-            <Range label="Torch angle" unit="°" value={st.angle} min={0} max={60} step={1} onCommit={(v) => act('set_angle', undefined, { v })} />
+            <MachineSetup />
           </section>
 
           <section>

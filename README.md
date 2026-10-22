@@ -20,6 +20,34 @@ npm test         # 48 scripted SOP attempts through the evaluator
 | **Proposal coverage** | Requirement-by-requirement status: Demonstrated / Simulated / Partial / Not in POC |
 | **History** | Past attempts (local browser storage) |
 
+## Two ways to play: first-person and classic
+
+The check-in screen has an **Experience** selector (default: first-person on devices with a mouse).
+
+**First-person (keyboard + mouse)** – walk the plumbing or welding bay as the candidate. Click the view to
+capture the mouse (Pointer Lock); `Esc` frees it and opens the pause menu.
+
+| Input | Plumbing bay | Welding bay |
+|---|---|---|
+| `W A S D` + mouse | walk, look (`Shift` faster, `C` crouch) | same |
+| `F` | put on PPE, take tools from the shadow board, pick parts from the stores | put on PPE, pick up torch / brush / gauges, move flammables away |
+| `E` | stopcock, drain cock, pressure-test panel, job card | fume extractor, extinguisher, MIG machine set-up panel, job card |
+| click | fit the part in your hand, measure, tag a leak, remove a part | wire-brush, measure the gap, clamp, mark a defect |
+| hold click | tighten a joint (wrench / wrong tools are recorded) | weld: sweep the view along the seam, travel speed measured live |
+| right-click | – | tack weld at start / middle / end |
+| `1–6`, wheel | switch tool on the belt | – (`R` / wheel: defect type while inspecting) |
+| `Q` | put the part / tool away | put the hand item away |
+
+Procedural gloved hands show what is held and reflect the PPE worn. A "VR headset and hand controllers –
+coming soon" badge sits in the corner. Replays always use the classic orbit camera.
+
+**Classic view** – orbit camera with side panels (drag, tap, hold-drag). Works with touch and is the safety
+net for weak GPUs or browsers that refuse pointer lock. You can switch views mid-attempt (pause menu / footer
+button); both views emit exactly the same action events, so scoring is identical.
+
+For automated browser tests, `?fpsdebug` replaces the real pointer lock with a virtual one and exposes
+`window.__fps` (pose get/set). `?view=classic` forces the classic view.
+
 ## Scenarios (3 per trade)
 
 | ID | Trade | Scenario | What it stresses |
@@ -63,7 +91,8 @@ src/engine/        types · policy · evaluate (index.ts) · AI layer (ai.ts) ·
   plumber/         catalog · layout · reducer · scenarios (criteria + questions)
   welder/          reducer (bead model) · scenarios
   attempts.ts      scripted lab attempts   engine.test.ts  vitest harness
-src/scenes/        React Three Fiber scenes, procedural PBR textures, lighting rig
+src/scenes/        React Three Fiber scenes, procedural PBR textures, lighting rig, walkable bays (stations)
+src/fps/           first-person runtime: pointer lock, WASD player, interaction ray + registry, hands
 src/store/         zustand session store (flow, events, replay, history)
 src/voice/         browser TTS + canvas MediaRecorder
 src/ui/            check-in, HUDs, follow-up, report, lab, coverage, history
@@ -79,6 +108,8 @@ stored attempt can be re-played in the workshop.
 * Weld bead quality is an illustrative model, not metallurgy.
 * No backend: history and decisions live in browser storage; recording stays in memory.
 * English only; touch uses the same pointer code but was not device-tested.
+* First-person mode is desktop keyboard + mouse only; hands and props are procedural primitives (no GLB assets).
+* No VR client yet – first-person mode is the presentation step towards it.
 
 ## Deploy (Vercel, free Hobby plan)
 

@@ -102,23 +102,49 @@ export function CheckIn() {
 
           <div className="card">
             <h2>3 · Controls (unscored)</h2>
-            <ul className="controls">
-              <li>
-                <b>Orbit</b> – drag the 3D view (limited, controlled camera). Scroll / pinch to zoom.
-              </li>
-              <li>
-                <b>Place</b> – drag a part from the tray onto a numbered position, <i>or</i> tap the part then tap the position.
-              </li>
-              <li>
-                <b>Tools</b> – pick a tool, then click the object it works on. Wrong tools are recorded.
-              </li>
-              <li>
-                <b>Welding</b> – hold and drag along the seam; your travel speed is measured live.
-              </li>
-              <li>
-                <b>Assessment mode</b> – no hints, no checklist, no corrective feedback until the report.
-              </li>
-            </ul>
+            {s.view === 'fps' ? (
+              <ul className="controls">
+                <li>
+                  <b>Move</b> – <kbd>W</kbd>
+                  <kbd>A</kbd>
+                  <kbd>S</kbd>
+                  <kbd>D</kbd> walk, mouse to look, <kbd>Shift</kbd> walk faster, <kbd>C</kbd> crouch. Click the view to capture the mouse; <kbd>Esc</kbd> pauses.
+                </li>
+                <li>
+                  <b>Pick up / wear</b> – look at an item and press <kbd>F</kbd> (PPE, parts, tools, torch). <kbd>Q</kbd> puts it away.
+                </li>
+                <li>
+                  <b>Use</b> – <kbd>E</kbd> operates valves, panels, the welding machine and the job card.
+                </li>
+                <li>
+                  <b>Work</b> – click to use the tool in your hand or fit the part; <b>hold</b> click to tighten a joint or to weld (sweep the view along the seam). Right-click tacks.
+                </li>
+                <li>
+                  <b>Tools</b> – take tools from the board, switch with <kbd>1</kbd>–<kbd>6</kbd> or the mouse wheel. Wrong tools are recorded.
+                </li>
+                <li>
+                  <b>Assessment mode</b> – no hints, no checklist, no corrective feedback until the report.
+                </li>
+              </ul>
+            ) : (
+              <ul className="controls">
+                <li>
+                  <b>Orbit</b> – drag the 3D view (limited, controlled camera). Scroll / pinch to zoom.
+                </li>
+                <li>
+                  <b>Place</b> – drag a part from the tray onto a numbered position, <i>or</i> tap the part then tap the position.
+                </li>
+                <li>
+                  <b>Tools</b> – pick a tool, then click the object it works on. Wrong tools are recorded.
+                </li>
+                <li>
+                  <b>Welding</b> – hold and drag along the seam; your travel speed is measured live.
+                </li>
+                <li>
+                  <b>Assessment mode</b> – no hints, no checklist, no corrective feedback until the report.
+                </li>
+              </ul>
+            )}
           </div>
 
           <div className="card">
@@ -129,6 +155,16 @@ export function CheckIn() {
                 Interviewer voice (browser text-to-speech) {ttsSupported ? '' : <em className="warn"> – not supported in this browser, subtitles only</em>}
               </span>
             </label>
+            <label className="sel">
+              Experience
+              <select value={s.view} onChange={(e) => s.patch({ view: e.target.value as 'fps' | 'classic' })}>
+                <option value="fps">First-person – walk the workshop (keyboard + mouse)</option>
+                <option value="classic">Classic view – orbit camera and side panels (mouse or touch)</option>
+              </select>
+            </label>
+            {s.view === 'fps' && (
+              <p className="small">🥽 Coming soon: the same assessment with a VR headset and hand controllers.</p>
+            )}
             <label className="sel">
               Graphics quality
               <select value={s.quality} onChange={(e) => s.patch({ quality: e.target.value as 'high' | 'low' })}>

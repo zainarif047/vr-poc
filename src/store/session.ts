@@ -8,6 +8,15 @@ import { resetRecorder, setSimulatedFailure, stopRecording } from '../voice/reco
 export type Screen = 'checkin' | 'sim' | 'followup' | 'evaluating' | 'report' | 'lab' | 'coverage' | 'history';
 export type Phase = 'idle' | 'briefing' | 'active' | 'followup' | 'done' | 'replaying';
 export type ToastKind = 'info' | 'warn' | 'bad' | 'ok';
+/** fps = first-person keyboard + mouse; classic = orbit camera + side panels (touch-friendly fallback). */
+export type View = 'fps' | 'classic';
+const defaultView = (): View => {
+  try {
+    return matchMedia('(hover: hover) and (pointer: fine)').matches ? 'fps' : 'classic';
+  } catch {
+    return 'classic';
+  }
+};
 
 const HIST_KEY = 'artilence-poc-history-v1';
 const loadHistory = (): Attempt[] => {
@@ -38,6 +47,7 @@ interface Store {
   voiceOn: boolean;
   simulateRecFail: boolean;
   quality: 'high' | 'low';
+  view: View;
 
   phase: Phase;
   sessionToken: number;
@@ -147,6 +157,7 @@ export const useSession = create<Store>((set, get) => {
     voiceOn: true,
     simulateRecFail: false,
     quality: typeof location !== 'undefined' && location.search.includes('q=low') ? 'low' : 'high',
+    view: typeof location !== 'undefined' && location.search.includes('view=classic') ? 'classic' : defaultView(),
 
     phase: 'idle',
     sessionToken: 0,

@@ -1,45 +1,16 @@
 import { Canvas } from '@react-three/fiber';
-import { useEffect, useState } from 'react';
 import { scenarioById } from '../engine';
-import { fmtT } from '../engine/helpers';
 import { part } from '../engine/plumber/catalog';
 import type { WelderState } from '../engine/welder/reducer';
 import { labelPortal } from '../scenes/common/Label';
 import { PlumberScene } from '../scenes/plumber/PlumberScene';
 import { WelderScene } from '../scenes/welder/WelderScene';
 import { useSession } from '../store/session';
-import { recordingStatus } from '../voice/recorder';
+import { RecBadge, Timer } from './SimBits';
 import { InterviewerPanel } from './Interviewer';
 import { PlumberHud } from './PlumberHud';
 import { WelderHud } from './WelderHud';
-
-function Timer() {
-  const startMs = useSession((s) => s.startMs);
-  const phase = useSession((s) => s.phase);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const i = setInterval(() => tick((n) => n + 1), 500);
-    return () => clearInterval(i);
-  }, []);
-  const ms = phase === 'active' || phase === 'replaying' ? performance.now() - startMs : 0;
-  return <b className="mono">{fmtT(ms)}</b>;
-}
-
-function RecBadge() {
-  const [st, setSt] = useState(recordingStatus());
-  const phase = useSession((s) => s.phase);
-  useEffect(() => {
-    const i = setInterval(() => setSt(recordingStatus()), 700);
-    return () => clearInterval(i);
-  }, []);
-  if (phase === 'replaying') return <span className="rec off">REPLAY</span>;
-  const on = st === 'recorded';
-  return (
-    <span className={`rec ${on ? 'on' : 'off'}`} title="Application-canvas capture (MediaRecorder)">
-      <i /> {on ? 'REC · canvas' : `REC ${st}`}
-    </span>
-  );
-}
+import { FpsHud } from './FpsHud';
 
 export default function Sim() {
   const s = useSession();
@@ -50,28 +21,32 @@ export default function Sim() {
   const arc = trade === 'welder' && stW?.arcOn;
   const flash = arc && !helmet;
   const live = s.phase === 'active';
+  const fps = s.view === 'fps' && s.phase !== 'replaying';
+  const canFps = typeof matchMedia !== 'undefined' && matchMedia('(pointer: fine)').matches;
 
   const ghost = s.drag ? part(s.drag.part) : null;
 
   return (
-    <div className="sim">
-      <aside className="side left">
-        <div className="card task">
-          <div className="eyebrow">{scn.trade.toUpperCase()} · {scn.id.toUpperCase()}</div>
-          <h2>{scn.title}</h2>
-          <table className="kv">
-            <tbody>
-              {scn.spec.map((r) => (
-                <tr key={r.label}>
-                  <th>{r.label}</th>
-                  <td>{r.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <InterviewerPanel />
-      </aside>
+    <div className={`sim ${fps ? 'fps' : ''}`}>
+      {!fps && (
+        <aside className="side left">
+          <div className="card task">
+            <div className="eyebrow">{scn.trade.toUpperCase()} · {scn.id.toUpperCase()}</div>
+            <h2>{scn.title}</h2>
+            <table className="kv">
+              <tbody>
+                {scn.spec.map((r) => (
+                  <tr key={r.label}>
+                    <th>{r.label}</th>
+                    <td>{r.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <InterviewerPanel />
+        </aside>
+      )}
 
       <section className="stage">
         <div className={`canvaswrap ${arc && helmet ? 'arc-dim' : ''}`}>
@@ -113,6 +88,7 @@ export default function Sim() {
             </button>
           </div>
         )}
+        {fps && <FpsHud />}
         {s.toast && <div className={`toast ${s.toast.kind}`}>{s.toast.text}</div>}
         {ghost && s.drag && (
           <div className="drag-ghost" style={{ left: s.drag.x + 14, top: s.drag.y + 10 }}>
@@ -121,32 +97,39 @@ export default function Sim() {
         )}
       </section>
 
-      <aside className="side right">{trade === 'plumber' ? <PlumberHud /> : <WelderHud />}</aside>
+      {!fps && <aside className="side right">{trade === 'plumber' ? <PlumberHud /> : <WelderHud />}</aside>}
 
-      <footer className="bar">
-        <span>
-          ⏱ <Timer />
-        </span>
-        <span>
-          Events <b className="mono">{s.events.length}</b>
-        </span>
-        <RecBadge />
-        <span className="grow" />
-        <span className="small">
-          {s.phase === 'briefing' && 'Briefing in progress'}
-          {s.phase === 'active' && 'Assessment mode · no hints'}
-          {s.phase === 'replaying' && 'Replaying scripted attempt'}
-        </span>
-        <button
-          className="primary"
-          disabled={!live}
-          onClick={() => {
-            if (confirm('Submit for evaluation? You will not be able to change your work afterwards.')) s.submit();
-          }}
-        >
-          ✔ Submit for evaluation
-        </button>
-      </footer>
+      {!fps && (
+        <footer className="bar">
+          <span>
+            ⏱ <Timer />
+          </span>
+          <span>
+            Events <b className="mono">{s.events.length}</b>
+          </span>
+          <RecBadge />
+          <span className="grow" />
+          <span className="small">
+            {s.phase === 'briefing' && 'Briefing in progress'}
+            {s.phase === 'active' && 'Assessment mode · no hints'}
+            {s.phase === 'replaying' && 'Replaying scripted attempt'}
+          </span>
+          {canFps && s.phase !== 'replaying' && (
+            <button className="mini" onClick={() => s.patch({ view: 'fps' })} title="Walk the workshop with WASD + mouse">
+              🎮 First-person view
+            </button>
+          )}
+          <button
+            className="primary"
+            disabled={!live}
+            onClick={() => {
+              if (confirm('Submit for evaluation? You will not be able to change your work afterwards.')) s.submit();
+            }}
+          >
+            ✔ Submit for evaluation
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

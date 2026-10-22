@@ -26,7 +26,7 @@ const ROWS: { group: string; rows: Row[] }[] = [
       { ref: '§3.3', req: 'Recording notice and unscored interaction tutorial', status: 'Partial', how: 'Notice acknowledged; controls guide is static (no interactive practice step).' },
       { ref: '§3.4', req: 'Join LiveKit session, speak with AI interviewer', status: 'Simulated', how: 'Browser text-to-speech reads the script. No real-time two-way voice.' },
       { ref: '§3.5', req: 'Task assigned by voice and mirrored on screen', status: 'Demonstrated', how: 'Briefing lines + task card.' },
-      { ref: '§3.6', req: 'Select tools, manipulate 3D components with touch or mouse', status: 'Demonstrated', how: 'Pointer-event interaction (drag, tap, hold-drag). Touch uses the same code path; not device-tested.' },
+      { ref: '§3.6', req: 'Select tools, manipulate 3D components with touch or mouse', status: 'Demonstrated', how: 'First-person mode: walk the bay (WASD + mouse look), F pick up / wear, E use, click / hold to fit, tighten and weld. Classic view: pointer drag, tap, hold-drag; touch uses the same code path, not device-tested.' },
       { ref: '§3.7', req: 'Capture actions, visual evidence, transcripts, recording references', status: 'Demonstrated', how: 'Action log, canvas recording (MediaRecorder), transcript. Held in browser, not uploaded.' },
       { ref: '§3.8', req: 'Approved follow-up questions on decisions', status: 'Simulated', how: 'Spoken questions; candidate picks an answer instead of speaking.' },
       { ref: '§3.9', req: 'Backend applies SOP rules and AI findings', status: 'Simulated', how: 'Evaluator runs client-side from the event log only.' },
@@ -98,6 +98,14 @@ const ROWS: { group: string; rows: Row[] }[] = [
       { ref: '§9', req: 'Scoring weights, threshold boundaries and critical overrides', status: 'Demonstrated', how: 'Boundary cases: weak reasoning, competency minimum, critical override.' },
       { ref: '§9', req: 'AI comparison with expert-labelled examples', status: 'Not in POC', how: 'Requires real model and labelled dataset.' },
       { ref: '§9', req: 'Latency, 3D responsiveness, recording reliability on reference devices', status: 'Not in POC', how: 'Not benchmarked.' },
+    ],
+  },
+  {
+    group: '§12 Future expansion & VR',
+    rows: [
+      { ref: '§12', req: 'Presentation layer separated from the assessment core', status: 'Demonstrated', how: 'First-person and classic views drive the same guards, event log, reducers and evaluator; both produce identical event types.' },
+      { ref: '§12', req: 'Embodied first-person interaction as a step towards VR', status: 'Demonstrated', how: 'Walkable bays, procedural gloved hands that reflect worn PPE, held tools, hold-to-weld with live travel speed. Desktop keyboard + mouse only.' },
+      { ref: '§12', req: 'VR headset client with tracked hand controllers', status: 'Not in POC', how: 'Shown as “coming soon”. The interaction layer (focus → F / E / click / hold verbs) is the seam where a WebXR controller adapter would plug in.' },
     ],
   },
 ];

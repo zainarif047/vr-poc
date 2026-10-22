@@ -2,7 +2,9 @@ import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { useThree } from '@react-three/fiber';
 import { ToneMappingMode } from 'postprocessing';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { useBlocker } from '../../fps/runtime';
 import { mats } from './materials';
 import { startRecording } from '../../voice/recorder';
 import { useSession } from '../../store/session';
@@ -16,20 +18,72 @@ export function RecorderBridge() {
   return null;
 }
 
-export function Room({ wallZ = -0.02, width = 16, plain = false }: { wallZ?: number; width?: number; plain?: boolean }) {
+export interface RoomBox {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+const CEIL = 3.4;
+
+/**
+ * Workshop shell. The back wall sits at `box.minZ`. Closed mode (first-person) adds side walls,
+ * the front wall and a ceiling with light panels; the classic orbit camera needs it open.
+ */
+export function Workshop({ box, plain = false, closed }: { box: RoomBox; plain?: boolean; closed: boolean }) {
   const M = mats();
+  const w = box.maxX - box.minX;
+  const d = box.maxZ - box.minZ;
+  const cx = (box.minX + box.maxX) / 2;
+  const cz = (box.minZ + box.maxZ) / 2;
+  const back = useRef<THREE.Mesh>(null);
+  const walls = useRef<THREE.Group>(null);
+  useBlocker(back, closed);
+  useBlocker(walls, closed);
+  const fw = closed ? w : w + 10;
+  const fd = closed ? d : d + 8;
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow material={M.floor}>
-        <planeGeometry args={[width, 10]} />
+      <mesh position={[cx, 0, closed ? cz : cz + 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow material={M.floor}>
+        <planeGeometry args={[fw, fd]} />
       </mesh>
-      <mesh position={[0, 2.6, wallZ]} receiveShadow material={plain ? M.wallPlain : M.wall}>
-        <planeGeometry args={[width, 5.2]} />
+      <mesh ref={back} position={[cx, 2.6, box.minZ]} receiveShadow material={plain ? M.wallPlain : M.wall}>
+        <planeGeometry args={[closed ? w : 16, 5.2]} />
       </mesh>
-      {/* skirting */}
-      <mesh position={[0, 0.07, wallZ + 0.02]} castShadow receiveShadow material={M.darkMetal}>
-        <boxGeometry args={[width, 0.14, 0.04]} />
+      <mesh position={[cx, 0.07, box.minZ + 0.02]} castShadow receiveShadow material={M.darkMetal}>
+        <boxGeometry args={[closed ? w : 16, 0.14, 0.04]} />
       </mesh>
+      {closed && (
+        <group ref={walls}>
+          <mesh position={[box.minX, CEIL / 2, cz]} rotation={[0, Math.PI / 2, 0]} receiveShadow material={M.wallPlain}>
+            <planeGeometry args={[d, CEIL]} />
+          </mesh>
+          <mesh position={[box.maxX, CEIL / 2, cz]} rotation={[0, -Math.PI / 2, 0]} receiveShadow material={M.wallPlain}>
+            <planeGeometry args={[d, CEIL]} />
+          </mesh>
+          <mesh position={[cx, CEIL / 2, box.maxZ]} rotation={[0, Math.PI, 0]} receiveShadow material={M.wallPlain}>
+            <planeGeometry args={[w, CEIL]} />
+          </mesh>
+          <mesh position={[cx, CEIL, cz]} rotation={[Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[w, d]} />
+            <meshStandardMaterial color="#1b2230" roughness={0.9} />
+          </mesh>
+          {[box.minX, box.maxX].map((x, i) => (
+            <mesh key={i} position={[x + (i ? -0.02 : 0.02), 0.07, cz]} material={M.darkMetal}>
+              <boxGeometry args={[0.04, 0.14, d]} />
+            </mesh>
+          ))}
+          {[0.3, 0.7].flatMap((fz) =>
+            [0.3, 0.7].map((fx) => (
+              <mesh key={`${fx}${fz}`} position={[box.minX + w * fx, CEIL - 0.03, box.minZ + d * fz]} rotation={[Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[1.4, 0.18]} />
+                <meshBasicMaterial color="#eef5ff" toneMapped={false} side={THREE.DoubleSide} />
+              </mesh>
+            )),
+          )}
+        </group>
+      )}
     </group>
   );
 }
